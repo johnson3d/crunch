@@ -246,17 +246,72 @@ bool crn_decompress_dds_to_images(const void *pDDS_file_data, crn_uint32 dds_fil
    tex_desc.m_levels = tex.get_num_levels();
    tex_desc.m_fmt_fourcc = (crn_uint32)tex.get_format();
 
-   for (uint32 f = 0; f < tex.get_num_faces(); f++)
+   if (ppImages != nullptr)
    {
-      for (uint32 l = 0; l < tex.get_num_levels(); l++)
-      {
-         mip_level *pLevel = tex.get_level(f, l);
-         image_u8 *pImg = pLevel->get_image();
-         ppImages[l + tex.get_num_levels() * f] = static_cast<crn_uint32*>(pImg->get_pixel_buf().assume_ownership());
-      }
+	   for (uint32 f = 0; f < tex.get_num_faces(); f++)
+	   {
+		   for (uint32 l = 0; l < tex.get_num_levels(); l++)
+		   {
+			   mip_level* pLevel = tex.get_level(f, l);
+			   image_u8* pImg = pLevel->get_image();
+			   ppImages[l + tex.get_num_levels() * f] = static_cast<crn_uint32*>(pImg->get_pixel_buf().assume_ownership());
+		   }
+	   }
    }
 
    return true;
+}
+
+void* crn_decompress_dds_to_images_withcontext(const void* pDDS_file_data, crn_uint32 dds_file_size, crn_uint32** ppImages, crn_texture_desc& tex_desc)
+{
+	memset(&tex_desc, 0, sizeof(tex_desc));
+
+    mipmapped_texture* p_tex = new mipmapped_texture();
+	mipmapped_texture& tex = *p_tex;
+	buffer_stream in_stream(pDDS_file_data, dds_file_size);
+	data_stream_serializer in_serializer(in_stream);
+    if (!tex.read_dds(in_serializer))
+    {
+        delete p_tex;
+        return nullptr;
+    }
+
+	if (tex.is_packed())
+	{
+		// TODO: Allow the user to disable uncooking of swizzled DXT5 formats?
+		bool uncook = true;
+
+		if (!tex.unpack_from_dxt(uncook))
+		{
+			delete p_tex;
+			return nullptr;
+		}
+	}
+
+	tex_desc.m_faces = tex.get_num_faces();
+	tex_desc.m_width = tex.get_width();
+	tex_desc.m_height = tex.get_height();
+	tex_desc.m_levels = tex.get_num_levels();
+	tex_desc.m_fmt_fourcc = (crn_uint32)tex.get_format();
+
+	if (ppImages != nullptr)
+	{
+		for (uint32 f = 0; f < tex.get_num_faces(); f++)
+		{
+			for (uint32 l = 0; l < tex.get_num_levels(); l++)
+			{
+				mip_level* pLevel = tex.get_level(f, l);
+				image_u8* pImg = pLevel->get_image();
+				ppImages[l + tex.get_num_levels() * f] = static_cast<crn_uint32*>(pImg->get_pixel_buf().assume_ownership());
+			}
+		}
+	}
+    return p_tex;
+}
+
+void free_crn_decompress_context(void* ptex)
+{
+    delete (mipmapped_texture*)ptex;
 }
 
 void crn_free_all_images(crn_uint32 **ppImages, const crn_texture_desc &desc)

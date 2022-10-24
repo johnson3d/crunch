@@ -230,7 +230,7 @@ namespace crnlib
       task_pool(uint num_threads);
       ~task_pool();
 
-      enum { cMaxThreads = 16 };
+      enum { cMaxThreads = 256 };
       bool init(uint num_threads);
       void deinit();
 
